@@ -1,16 +1,20 @@
 package com.example.valuation_service.service;
 
 
+import com.example.valuation_service.exception.CurrencyNotFoundException;
+import com.example.valuation_service.exception.FXRateNotFoundException;
 import com.example.valuation_service.model.*;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import java.util.*;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.when;
 
@@ -58,7 +62,6 @@ public class ValuationServiceTest {
     }
 
 
-
     @Test
     @DisplayName("Empty Account List should return empty result")
     public void testCalculateValuationWithEmptyAccountList() {
@@ -89,7 +92,7 @@ public class ValuationServiceTest {
         eligibilityList.add(new Eligibility(false, List.of("S4"), List.of("E1"), 0));
         when(eligibilityService.getEligibility(accountIds, assetIds)).thenReturn(eligibilityList);
         when(priceService.getPrices(assetIds)).thenReturn(priceList);
-        when(fxService.getFXRates()).thenReturn(getFxRates());
+
 
         List<Account> result = valuationService.calculateValuation(accountIds, currency);
 
@@ -114,7 +117,6 @@ public class ValuationServiceTest {
         eligibilityList.add(new Eligibility(false, List.of("S4"), List.of("E1"), 0));
         when(eligibilityService.getEligibility(accountIds, assetIds)).thenReturn(eligibilityList);
         when(priceService.getPrices(assetIds)).thenReturn(priceList);
-        when(fxService.getFXRates()).thenReturn(getFxRates());
 
         List<Account> result = valuationService.calculateValuation(accountIds, currency);
 
@@ -125,8 +127,8 @@ public class ValuationServiceTest {
     }
 
     @Test
-    @DisplayName("With eligible and ineligible positions, single account, currency: INR")
-    void testCalculateValuationWithInvalidCurrency() {
+    @DisplayName("With eligible and ineligible positions, single account, currency: Invalid")
+    void testCalculateValuationWithInvalidCurrencyGiven() {
         List<String> accountIds = List.of("E1");
         List<String> assetIds = List.of("S1", "S3", "S4");
         List<Price> priceList = List.of(new Price("S1", 50.5), new Price("S3", 10.4), new Price("S4", 15.5, "USD"));
@@ -139,16 +141,33 @@ public class ValuationServiceTest {
         eligibilityList.add(new Eligibility(false, List.of("S4"), List.of("E1"), 0));
         when(eligibilityService.getEligibility(accountIds, assetIds)).thenReturn(eligibilityList);
         when(priceService.getPrices(assetIds)).thenReturn(priceList);
-        when(fxService.getFXRates()).thenReturn(getFxRates());
 
-        List<Account> result = valuationService.calculateValuation(accountIds, currency);
+        assertThrows(CurrencyNotFoundException.class,
+                () -> valuationService.calculateValuation(accountIds, currency));
 
-        assertEquals(1, result.size());
-        assertEquals("E1", result.get(0).getAccountId());
-        assertEquals(0, result.get(0).getCollateralValue());//584640
-        assertEquals(0, result.get(0).getMarketValue());//778766.67
     }
 
+    @Test
+    @DisplayName("With eligible and ineligible positions, single account, Invalid currency in Price List")
+    void testCalculateValuationWithInvalidCurrencyInPriceList() {
+        List<String> accountIds = List.of("E1");
+        List<String> assetIds = List.of("S1", "S3", "S4");
+        List<Price> priceList = List.of(new Price("S1", 50.5),
+                new Price("S3", 10.4), new Price("S4", 15.5, "Invalid Currency"));
+        List<String> eligibleAssets = List.of("S1", "S3");
+        String currency = "InvalidCurrency";
+        when(positionService.getPositions(accountIds)).thenReturn(getAccountPositions(accountIds));
+        List<Eligibility> eligibilityList = new ArrayList<>();
+
+        eligibilityList.add(new Eligibility(true, eligibleAssets, List.of("E1"), 0.9));
+        eligibilityList.add(new Eligibility(false, List.of("S4"), List.of("E1"), 0));
+        when(eligibilityService.getEligibility(accountIds, assetIds)).thenReturn(eligibilityList);
+        when(priceService.getPrices(assetIds)).thenReturn(priceList);
+
+        assertThrows(CurrencyNotFoundException.class,
+                () -> valuationService.calculateValuation(accountIds, currency));
+
+    }
 
     @Test
     @DisplayName("With eligible positions only, single account, currency: USD")
@@ -164,7 +183,6 @@ public class ValuationServiceTest {
         eligibilityList.add(new Eligibility(true, eligibleAssets, List.of("E3"), 0.9));
         when(eligibilityService.getEligibility(accountIds, assetIds)).thenReturn(eligibilityList);
         when(priceService.getPrices(assetIds)).thenReturn(priceList);
-        when(fxService.getFXRates()).thenReturn(getFxRates());
 
         List<Account> result = valuationService.calculateValuation(accountIds, currency);
 
@@ -188,7 +206,7 @@ public class ValuationServiceTest {
         eligibilityList.add(new Eligibility(false, inEligibleAssets, List.of("E4"), 0));
         when(eligibilityService.getEligibility(accountIds, assetIds)).thenReturn(eligibilityList);
         when(priceService.getPrices(assetIds)).thenReturn(priceList);
-        when(fxService.getFXRates()).thenReturn(getFxRates());
+
 
         List<Account> result = valuationService.calculateValuation(accountIds, currency);
 
@@ -220,7 +238,6 @@ public class ValuationServiceTest {
         eligibilityList.add(new Eligibility(false, inEligibleAssets, accountIds, 0));
         when(eligibilityService.getEligibility(accountIds, assetIds)).thenReturn(eligibilityList);
         when(priceService.getPrices(assetIds)).thenReturn(priceList);
-        when(fxService.getFXRates()).thenReturn(getFxRates());
 
         List<Account> result = valuationService.calculateValuation(accountIds, currency);
 
@@ -231,6 +248,65 @@ public class ValuationServiceTest {
         assertEquals("E2", result.get(1).getAccountId());
         assertEquals(22.54, result.get(1).getCollateralValue());
         assertEquals(1730.05, result.get(1).getMarketValue());
+    }
+
+
+    @Test
+    @DisplayName("With eligible and ineligible positions, multiple accounts, currency: USD")
+    void testCalculateValuationWithMixedPositionsMultipleAccountsInvalidCurrencyInPriceList() {
+        List<String> accountIds = List.of("E1", "E2");
+        List<String> assetIds = List.of("S1", "S3", "S4", "S2", "S5");
+        List<Price> priceList = List.of(
+                new Price("S1", 50.5),
+                new Price("S3", 10.4),
+                new Price("S4", 15.5, "USD"),
+                new Price("S2", 20.2, "JPY"),
+                new Price("S5", 15.5, "InvalidCurrency")
+        );
+        List<String> eligibleAssets = List.of("S1", "S3", "S2");
+        List<String> inEligibleAssets = List.of("S4", "S5");
+        String currency = "USD";
+        when(positionService.getPositions(accountIds)).thenReturn(getAccountPositions(accountIds));
+        List<Eligibility> eligibilityList = new ArrayList<>();
+
+        eligibilityList.add(new Eligibility(true, eligibleAssets, accountIds, 0.9));
+        eligibilityList.add(new Eligibility(false, inEligibleAssets, accountIds, 0));
+        when(eligibilityService.getEligibility(accountIds, assetIds)).thenReturn(eligibilityList);
+        when(priceService.getPrices(assetIds)).thenReturn(priceList);
+
+
+        assertThrows(CurrencyNotFoundException.class,
+                () -> valuationService.calculateValuation(accountIds, currency));
+
+    }
+
+
+    @Test
+    @DisplayName("No prices for assets should return zero valuation")
+    void testCalculateValuationWithNoPricesEmptyPriceList() {
+        List<String> accountIds = List.of("E1", "E2");
+        List<String> assetIds = List.of("S1", "S3", "S4", "S2", "S5");
+        List<String> eligibleAssets = List.of("S1", "S3", "S2");
+        List<String> inEligibleAssets = List.of("S4", "S5");
+        String currency = "USD";
+        when(positionService.getPositions(accountIds)).thenReturn(getAccountPositions(accountIds));
+        List<Eligibility> eligibilityList = new ArrayList<>();
+
+        eligibilityList.add(new Eligibility(true, eligibleAssets, accountIds, 0.9));
+        eligibilityList.add(new Eligibility(false, inEligibleAssets, accountIds, 0));
+        when(eligibilityService.getEligibility(accountIds, assetIds)).thenReturn(eligibilityList);
+        when(priceService.getPrices(assetIds)).thenReturn(Collections.emptyList());
+        when(fxService.getFXRates()).thenReturn(fxRates);
+
+        List<Account> result = valuationService.calculateValuation(accountIds, currency);
+
+        assertEquals(2, result.size());
+        assertEquals("E1", result.get(0).getAccountId());
+        assertEquals(0, result.get(0).getCollateralValue());
+        assertEquals(0, result.get(0).getMarketValue());
+        assertEquals("E2", result.get(1).getAccountId());
+        assertEquals(0, result.get(1).getCollateralValue());
+        assertEquals(0, result.get(1).getMarketValue());
     }
 
     @Test
@@ -247,8 +323,7 @@ public class ValuationServiceTest {
         eligibilityList.add(new Eligibility(true, eligibleAssets, accountIds, 0.9));
         eligibilityList.add(new Eligibility(false, inEligibleAssets, accountIds, 0));
         when(eligibilityService.getEligibility(accountIds, assetIds)).thenReturn(eligibilityList);
-        when(priceService.getPrices(assetIds)).thenReturn(Collections.emptyList());
-        when(fxService.getFXRates()).thenReturn(getFxRates());
+        when(priceService.getPrices(assetIds)).thenReturn(null);
 
         List<Account> result = valuationService.calculateValuation(accountIds, currency);
 
@@ -259,6 +334,28 @@ public class ValuationServiceTest {
         assertEquals("E2", result.get(1).getAccountId());
         assertEquals(0, result.get(1).getCollateralValue());
         assertEquals(0, result.get(1).getMarketValue());
+    }
+
+
+    @Test
+    @DisplayName("With eligible and ineligible positions, single account, currency: USD")
+    void testCalculateValuationFxRateIsEmptyOrNull() {
+        List<String> accountIds = List.of("E1");
+        List<String> assetIds = List.of("S1", "S3", "S4");
+        List<Price> priceList = List.of(new Price("S1", 50.5), new Price("S3", 10.4), new Price("S4", 15.5, "USD"));
+        List<String> eligibleAssets = List.of("S1", "S3");
+        String currency = "USD";
+        when(positionService.getPositions(accountIds)).thenReturn(getAccountPositions(accountIds));
+        List<Eligibility> eligibilityList = new ArrayList<>();
+
+        eligibilityList.add(new Eligibility(true, eligibleAssets, List.of("E1"), 0.9));
+        eligibilityList.add(new Eligibility(false, List.of("S4"), List.of("E1"), 0));
+        when(eligibilityService.getEligibility(accountIds, assetIds)).thenReturn(eligibilityList);
+        when(priceService.getPrices(assetIds)).thenReturn(priceList);
+        when(fxService.getFXRates()).thenReturn(null);
+
+
+        assertThrows(FXRateNotFoundException.class, () -> valuationService.calculateValuation(accountIds, currency));
     }
 
 
@@ -282,7 +379,7 @@ public class ValuationServiceTest {
         List<Position> positionB = new ArrayList<>();
         positionB.add(Position.builder().assetId("S2").quantity(200).build());
         positionB.add(Position.builder().assetId("S5").quantity(100).build());
-    //    positionB.add(Position.builder().assetId("S6").quantity(300).build());
+        //    positionB.add(Position.builder().assetId("S6").quantity(300).build());
         return positionB;
     }
 
@@ -300,16 +397,6 @@ public class ValuationServiceTest {
         positionA.add(Position.builder().assetId("S11").quantity(10).build());
         positionA.add(Position.builder().assetId("S12").quantity(10).build());
         return positionA;
-    }
-
-
-    private  List<FXRate> getFxRates(){
-        return List.of(new FXRate("GBP",1.28),
-                new FXRate("JPY",0.0062),
-                new FXRate("USD",1),
-                new FXRate("INR", 0.012),
-                new FXRate("EUR",1.10)
-                );
     }
 
 
